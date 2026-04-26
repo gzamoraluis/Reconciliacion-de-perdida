@@ -2,219 +2,165 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Winery Loss App</title>
+<title>Winery Loss Reconciliation</title>
 
 <style>
-body {
-  font-family: -apple-system, BlinkMacSystemFont;
-  background: #f2f2f7;
-  margin: 0;
-}
-
-.app {
-  max-width: 430px;
-  margin: auto;
-  padding: 15px;
-}
-
-.card {
-  background: white;
-  border-radius: 16px;
-  padding: 15px;
-  margin-bottom: 15px;
-}
-
-input {
-  width: 100%;
-  padding: 10px;
-  margin-bottom: 10px;
-  border-radius: 10px;
-  border: 1px solid #ccc;
-}
-
-table {
-  width: 100%;
-  font-size: 12px;
-}
-
-th, td {
-  text-align: center;
-  padding: 5px;
-}
-
-button {
-  width: 100%;
-  padding: 10px;
-  border-radius: 12px;
-  border: none;
-  margin-top: 10px;
-}
-
-.main-btn {
-  background: #007aff;
-  color: white;
-  font-weight: bold;
-}
-
-.loss {
-  color: red;
-  font-weight: bold;
-}
-
+body { font-family: Arial; margin: 20px; }
+table { border-collapse: collapse; width: 100%; margin-top: 10px; }
+td, th { border: 1px solid #ccc; padding: 6px; text-align: center; }
+input { width: 80px; }
+button { margin: 10px 5px; padding: 6px 12px; }
 .good { color: green; }
 .bad { color: red; }
-
 </style>
 </head>
 
 <body>
 
-<div class="app">
+<h2>Winery Loss Reconciliation Tool</h2>
 
-  <h2>🍷 Loss Reconciliation</h2>
+<h3>Inputs</h3>
+Gal / Barrel: <input id="galPerBarrel" value="59"><br>
+Total Lees: <input id="lees" value="15"><br>
+Final Target: <input id="target" value="8400"><br>
 
-  <div class="card">
-    <input id="galPerBarrel" placeholder="Gal per Barrel" value="59">
-    <input id="lees" placeholder="Total Lees" value="15">
-    <input id="target" placeholder="Final Target" value="8662">
-  </div>
+<h3>Lotes</h3>
+<table id="lotesTable">
+<tr>
+<th>Lote</th>
+<th>Barriles</th>
+<th>Base</th>
+<th>Lees</th>
+<th>Base Ajustada</th>
+<th>Pérdida</th>
+<th>Total Lote</th>
+<th>Acumulado</th>
+</tr>
+</table>
 
-  <div class="card">
-    <table id="lotesTable">
-      <tr>
-        <th>#</th>
-        <th>Br</th>
-        <th>Base</th>
-        <th>Lees</th>
-        <th>Adj</th>
-        <th>Loss</th>
-        <th>Total</th>
-      </tr>
-    </table>
+<button onclick="addLote()">+ Lote</button>
 
-    <button onclick="addLote()">+ Lote</button>
-  </div>
+<h3>Contenedores</h3>
+<table id="contTable">
+<tr><th>Galones</th></tr>
+</table>
 
-  <div class="card">
-    <table id="contTable">
-      <tr><th>Containers</th></tr>
-    </table>
+<button onclick="addContainer()">+ Contenedor</button>
 
-    <button onclick="addContainer()">+ Container</button>
-  </div>
+<button onclick="calculate()">Calcular</button>
 
-  <button class="main-btn" onclick="calculate()">Calcular</button>
-
-  <div id="report" class="card"></div>
-
-</div>
+<h3>Reporte</h3>
+<div id="report"></div>
 
 <script>
 
-// Add lote
+function round(num) {
+    return Math.round(num * 10) / 10;
+}
+
 function addLote() {
-  const table = document.getElementById("lotesTable");
-  const row = table.insertRow();
-  const index = table.rows.length - 1;
+    let table = document.getElementById("lotesTable");
+    let row = table.insertRow();
+    let index = table.rows.length - 1;
 
-  row.innerHTML = `
-    <td>${index}</td>
-    <td><input type="number" value="0"></td>
-    <td></td>
-    <td></td>
-    <td></td>
-    <td></td>
-    <td></td>
-  `;
+    row.innerHTML = `
+        <td>${index}</td>
+        <td><input type="number" value="0"></td>
+        <td></td>
+        <td></td>
+        <td></td>
+        <td></td>
+        <td></td>
+        <td></td>
+    `;
 }
 
-// Add container
 function addContainer() {
-  const table = document.getElementById("contTable");
-  const row = table.insertRow();
-  row.innerHTML = `<td><input type="number" value="0"></td>`;
+    let table = document.getElementById("contTable");
+    let row = table.insertRow();
+    row.innerHTML = `<td><input type="number" value="0"></td>`;
 }
 
-// Calculate
 function calculate() {
 
-  const gal = parseFloat(document.getElementById("galPerBarrel").value) || 0;
-  const lees = parseFloat(document.getElementById("lees").value) || 0;
-  const targetVal = parseFloat(document.getElementById("target").value) || 0;
+    let gal = parseFloat(document.getElementById("galPerBarrel").value);
+    let lees = parseFloat(document.getElementById("lees").value);
+    let target = parseFloat(document.getElementById("target").value);
 
-  const rows = document.getElementById("lotesTable").rows;
+    let rows = document.getElementById("lotesTable").rows;
 
-  let totalBarrels = 0;
+    let barrilesTotal = 0;
 
-  // total barrels
-  for (let i = 1; i < rows.length; i++) {
-    totalBarrels += parseFloat(rows[i].cells[1].children[0].value) || 0;
-  }
+    for (let i = 1; i < rows.length; i++) {
+        barrilesTotal += parseFloat(rows[i].cells[1].children[0].value) || 0;
+    }
 
-  let baseTotal = 0;
+    let baseTotal = 0;
 
-  // base + lees
-  for (let i = 1; i < rows.length; i++) {
+    // BASE + LEES
+    for (let i = 1; i < rows.length; i++) {
 
-    const br = parseFloat(rows[i].cells[1].children[0].value) || 0;
+        let barriles = parseFloat(rows[i].cells[1].children[0].value) || 0;
 
-    const base = br * gal;
-    const leesShare = totalBarrels ? -(br / totalBarrels) * lees : 0;
-    const adj = base + leesShare;
+        let base = barriles * gal;
+        let leesShare = barrilesTotal ? -(barriles / barrilesTotal) * lees : 0;
+        let adjusted = base + leesShare;
 
-    rows[i].cells[2].innerText = base.toFixed(1);
-    rows[i].cells[3].innerText = leesShare.toFixed(1);
-    rows[i].cells[4].innerText = adj.toFixed(1);
+        rows[i].cells[2].innerText = round(base);
+        rows[i].cells[3].innerText = round(leesShare);
+        rows[i].cells[4].innerText = round(adjusted);
 
-    baseTotal += adj;
-  }
+        baseTotal += adjusted;
+    }
 
-  // containers
-  let contTotal = 0;
-  const contRows = document.getElementById("contTable").rows;
+    // CONTENEDORES
+    let contRows = document.getElementById("contTable").rows;
+    let contTotal = 0;
 
-  for (let i = 1; i < contRows.length; i++) {
-    contTotal += parseFloat(contRows[i].cells[0].children[0].value) || 0;
-  }
+    for (let i = 1; i < contRows.length; i++) {
+        contTotal += parseFloat(contRows[i].cells[0].children[0].value) || 0;
+    }
 
-  // LOSS ONLY
-  let lossTotal = (baseTotal + contTotal) - targetVal;
-  if (lossTotal < 0) lossTotal = 0;
+    let systemTotal = baseTotal + contTotal;
 
-  let acc = 0;
+    // VALIDACIÓN: SOLO PÉRDIDA
+    if (target > systemTotal) {
+        document.getElementById("report").innerHTML =
+            "<span class='bad'>ERROR: El target es mayor que el volumen disponible (no se permite ganancia)</span>";
+        return;
+    }
 
-  for (let i = 1; i < rows.length; i++) {
+    let lossTotal = systemTotal - target;
 
-    const adj = parseFloat(rows[i].cells[4].innerText) || 0;
+    let accumulated = 0;
 
-    const loss = baseTotal ? (adj / baseTotal) * lossTotal : 0;
-    const total = adj - loss;
+    // DISTRIBUCIÓN DE PÉRDIDA
+    for (let i = 1; i < rows.length; i++) {
 
-    acc += total;
+        let adjusted = parseFloat(rows[i].cells[4].innerText) || 0;
 
-    rows[i].cells[5].innerHTML =
-      loss > 0 ? `<span class="loss">${loss.toFixed(1)}</span>` : "0.0";
+        let loss = baseTotal ? (adjusted / baseTotal) * lossTotal : 0;
+        let total = adjusted - loss;
 
-    rows[i].cells[6].innerText = total.toFixed(1);
-  }
+        accumulated += total;
 
-  const final = acc + contTotal;
-  const check = final - targetVal;
+        rows[i].cells[5].innerText = round(loss);
+        rows[i].cells[6].innerText = round(total);
+        rows[i].cells[7].innerText = round(accumulated);
+    }
 
-  document.getElementById("report").innerHTML = `
-    <b>Total Lotes:</b> ${acc.toFixed(1)}<br>
-    <b>Containers:</b> ${contTotal.toFixed(1)}<br>
-    <b>Final:</b> ${final.toFixed(1)}<br>
-    <b>Check:</b> 
-    <span class="${Math.abs(check) < 0.1 ? 'good' : 'bad'}">
-      ${check.toFixed(1)}
-    </span>
-  `;
+    let finalTotal = accumulated + contTotal;
+    let check = finalTotal - target;
+
+    document.getElementById("report").innerHTML = `
+        Total Lotes: ${round(accumulated)} <br>
+        Contenedores: ${round(contTotal)} <br>
+        FINAL: ${round(finalTotal)} <br>
+        Target: ${target} <br>
+        Pérdida Total: ${round(lossTotal)} <br>
+        Check: <span class="${check === 0 ? 'good' : 'bad'}">${round(check)}</span>
+    `;
 }
-
-// AUTO add one row so it works immediately
-addLote();
 
 </script>
 
